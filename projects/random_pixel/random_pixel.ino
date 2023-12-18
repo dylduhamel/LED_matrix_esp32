@@ -1,11 +1,8 @@
 /*******************************************************************
     Dylan Duhamel, Dec 14, 2023
 
-    Bouncing squares of different colours and sizes
-
-    Based on mrfaptastic's example in ESP32-HUB75-MatrixPanel-I2S-DMA
-    https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA/blob/master/examples/2_PatternPlasma
-
+    Random pixel generation
+    
  *******************************************************************/
 
 // ----------------------------
@@ -85,9 +82,9 @@ void displaySetup() {
 void setup() {
   Serial.begin(115200);
 
-  Serial.println(F("*****************************************************"));
-  Serial.println(F("*        ESP32-HUB75-MatrixPanel-I2S-DMA DEMO       *"));
-  Serial.println(F("*****************************************************"));
+  Serial.println(F("**********************************************************"));
+  Serial.println(F("*     ESP32-HUB75-MatrixPanel-I2S-DMA Random Pixel       *"));
+  Serial.println(F("**********************************************************"));
 
   displaySetup();
 

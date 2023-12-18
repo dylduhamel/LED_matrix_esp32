@@ -128,9 +128,9 @@ void loop() {
     for (int y = 0; y < panelResY; y++) {
       int16_t v = 0;
       uint8_t wibble = sin8(time_counter);
-      v += sin16(x * wibble * 3 + time_counter);
+      v += sin16(x * wibble * 8 + time_counter);
       v += cos16(y * (128 - wibble) + time_counter);
-      v += sin16(y * x * cos8(-time_counter) / 8);
+      v += sin16(y * x * cos8(-time_counter) / 2);
 
       currentColor = ColorFromPalette(currentPalette, (v >> 8) + 127);  //, brightness, currentBlendType);
       dma_display->drawPixelRGB888(x, y, currentColor.r, currentColor.g, currentColor.b);
@@ -141,7 +141,7 @@ void loop() {
   ++cycles;
   ++fps;
 
-  if (cycles >= 1024) {
+  if (cycles >= 2048) {
     time_counter = 0;
     cycles = 0;
     currentPalette = palettes[random(0, sizeof(palettes) / sizeof(palettes[0]))];
