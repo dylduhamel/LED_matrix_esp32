@@ -52,7 +52,7 @@ const int squareSize = 5;
 // Game colors
 int r, g, b = 150;
 
-const int refreshDelay = 100;
+const int refreshDelay = 300;
 const int GAME_WIDTH = 64;
 const int GAME_HEIGHT = 64;
 
@@ -130,23 +130,36 @@ bool isAlive(int x, int y, std::array<std::array<int, GAME_HEIGHT>, GAME_WIDTH> 
 
   // Square fractal
   if (game[x][y] == 1 || aliveNeighbors == 1 || aliveNeighbors == 5) return true;
-  
+
   // Square fractal
   // if (game[x][y] == 1 || aliveNeighbors == 1 || aliveNeighbors == 5) return true;
   // if (game[x][y] == 0 && aliveNeighbors == 3) return true;
   // if (game[x][y] == 1 && aliveNeighbors == 8) return false;
 
-    return false;
+  return false;
 }
 
 void initGameSeed() {
   int startX = (GAME_WIDTH - squareSize) / 2;
   int startY = (GAME_HEIGHT - squareSize) / 2;
 
+  for (auto &row : display) {
+    row.fill(0);
+  }
+
   for (int i = startY; i < startY + squareSize; ++i) {
     for (int j = startX; j < startX + squareSize; ++j) {
       display[i][j] = 1;
+      // Create a string with the formatted content
+      String message = "i: " + String(i) + ", j: " + String(j);
+
+      // Print the message
+      Serial.println(message);
     }
+  }
+
+  for (auto &row : swap) {
+    row.fill(0);
   }
 }
 

@@ -1,20 +1,22 @@
 /*******************************************************************
     Dylan Duhamel, Dec 14, 2023
 
-    Random pixel generation
-    
+    Simulation of exponential generation in random cell collisions.
+
  *******************************************************************/
 
 // ----------------------------
-// Additional Libraries - each one of these will need to be installed.
+// Additional Libraries - some of these will need to be installed.
 // ----------------------------
+
+#include <array>
+#include <unistd.h>
 
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 // This is the library for interfacing with the display
 
 // Can be installed from the library manager (Search for "ESP32 MATRIX DMA")
 // https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA
-
 
 // --------------------------------
 // -------   Matrix Config   ------
@@ -28,20 +30,28 @@ const int panel_chain = 2;  // Total number of panels chained one to another.
 // -------   Other Config   ------
 // -------------------------------
 
+struct cell {
+  float x, y;       // position
+  float vx, vy;     // velocity
+  uint8_t r, g, b;  // color
+  float angle;      // direction of movement
+};
+
+const int CELL_COUNT = 20;
+const int refreshDelay = 40;
+
+// Array of cells
+cell cells[CELL_COUNT];
+
 // placeholder for the matrix object
 MatrixPanel_I2S_DMA *dma_display = nullptr;
 
-uint16_t fps = 0;
-unsigned long fps_timer;
-
-// Pixel coords
-int x, y = 0;
-
-const int refreshDelay = 100;
+// For game time
+unsigned long lastTime = 0;
 
 int getRandomCoord() {
-    return random(64);
-  }
+  return random(64);
+}
 
 void displaySetup() {
   HUB75_I2S_CFG mxconfig(
@@ -52,7 +62,7 @@ void displaySetup() {
 
   // This is how you enable the double buffer.
   // Double buffer can help with animation heavy projects
-  //mxconfig.double_buff = true;
+  // mxconfig.double_buff = true;
 
   // If you are using a 64x64 matrix you need to pass a value for the E pin
   // The trinity connects GPIO 18 to E.
@@ -72,7 +82,7 @@ void displaySetup() {
   dma_display = new MatrixPanel_I2S_DMA(mxconfig);
 
   // let's adjust default brightness to about 75%
-  //dma_display->setBrightness8(192); // range is 0-255, 0 - 0%, 255 - 100%
+  dma_display->setBrightness8(100);  // range is 0-255, 0 - 0%, 255 - 100%
 
   // Allocate memory and start DMA display
   if (not dma_display->begin())
@@ -81,29 +91,42 @@ void displaySetup() {
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("Starting...");
 
-  Serial.println(F("**********************************************************"));
-  Serial.println(F("*     ESP32-HUB75-MatrixPanel-I2S-DMA Random Pixel       *"));
-  Serial.println(F("**********************************************************"));
-
+  // Initialize display
   displaySetup();
 
-  Serial.println("Starting random pixel...");
-  fps_timer = millis();
+  // Initialize cells with random positions, velocities, and directions
+  for (int i = 0; i < CELL_COUNT; i++) {
+    cells[i].x = random(128);
+    cells[i].y = random(64);
+    cells[i].angle = random(0, 2 * PI);         // Random direction 0 to 2π
+    float speed = random(1, 3);                 // Random speed 1 to 3
+    cells[i].vx = speed * cos(cells[i].angle);  // Velocity component in x direction
+    cells[i].vy = speed * sin(cells[i].angle);  // Velocity component in y direction
+    cells[i].r = random(256);
+    cells[i].g = random(256);
+    cells[i].b = random(256);
+  }
 }
 
 void loop() {
-  x = getRandomCoord();
-  y = getRandomCoord();
-  dma_display->drawPixelRGB888(x, y, 255, 0, 0);
+  for (int i = 0; i < CELL_COUNT; i++) {
+    // Update position
+    cells[i].x += cells[i].vx;
+    cells[i].y += cells[i].vy;
 
-  // print FPS rate every 5 seconds
-  // Note: this is NOT a matrix refresh rate, it's the number of data frames being drawn to the DMA buffer per second
-  if (fps_timer + 5000 < millis()) {
-    Serial.printf_P(PSTR("Effect fps: %d\n"), fps / 5);
-    fps_timer = millis();
-    fps = 0;
+    // Check for boundary collision
+    if (cells[i].x < 0 || cells[i].x > 127)
+      cells[i].vx *= -1;
+    if (cells[i].y < 0 || cells[i].y > 63)
+      cells[i].vy *= -1;
+
+    dma_display->drawPixelRGB888(cells[i].x, cells[i].y, cells[i].r, cells[i].g, cells[i].b);
   }
+
+  // Simulation delay
   delay(refreshDelay);
+
   dma_display->clearScreen();
 }
