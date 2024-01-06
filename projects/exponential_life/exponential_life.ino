@@ -11,6 +11,9 @@
 
 #include <array>
 #include <unistd.h>
+#include <iostream>
+#include <map>
+#include <utility>
 
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 // This is the library for interfacing with the display
@@ -30,21 +33,24 @@ const int panel_chain = 2;  // Total number of panels chained one to another.
 // -------   Other Config   ------
 // -------------------------------
 
-struct cell {
+struct Cell {
   float x, y;       // position
   float vx, vy;     // velocity
   uint8_t r, g, b;  // color
   float angle;      // direction of movement
 };
 
-const int CELL_COUNT = 20;
-const int refreshDelay = 40;
+const int CELL_COUNT = 12;
+const int refreshDelay = 100;
 
 // Array of cells
-cell cells[CELL_COUNT];
+Cell cells[CELL_COUNT];
+
+// Map to check for collisions
+std::map<std::pair<int, int>, int> coordMap;
 
 // placeholder for the matrix object
-MatrixPanel_I2S_DMA *dma_display = nullptr;
+MatrixPanel_I2S_DMA* dma_display = nullptr;
 
 // For game time
 unsigned long lastTime = 0;
@@ -52,6 +58,56 @@ unsigned long lastTime = 0;
 int getRandomCoord() {
   return random(64);
 }
+
+void drawCells() {
+  for (int i = 0; i < CELL_COUNT; i++) {
+    // Update position
+    cells[i].x += cells[i].vx;
+    cells[i].y += cells[i].vy;
+
+    // Check for boundary collision
+    if (cells[i].x < 0 || cells[i].x > 127)
+      cells[i].vx *= -1;
+    if (cells[i].y < 0 || cells[i].y > 63)
+      cells[i].vy *= -1;
+
+    dma_display->drawPixelRGB888(cells[i].x, cells[i].y, cells[i].r, cells[i].g, cells[i].b);
+  }
+}
+
+void checkCollisions() {
+  if (!coordMap.empty())
+    coordMap.clear();
+
+  for (int i = 0; i < CELL_COUNT; i++) {
+    // Cast float coordinates to int before creating the pair
+    int x = static_cast<int>(cells[i].x);
+    int y = static_cast<int>(cells[i].y);
+
+    std::pair<int, int> coordPair = std::make_pair(x, y);
+
+    // Check if map for coord is not empty
+    if (coordMap.count(coordPair) > 0) {
+      coordMap[coordPair] += 1;
+    } else {
+      coordMap[coordPair] = 1;
+    }
+  }
+
+  // Check for collisions (map value > 1)
+  for (const auto& elem : coordMap) {
+    if (elem.second > 1) {
+      Serial.println("Collision");
+      Serial.print("Collision detected at coordinates (");
+      Serial.print(elem.first.first);
+      Serial.print(", ");
+      Serial.print(elem.first.second);
+      Serial.print(") with count ");
+      Serial.println(elem.second);
+    }
+  }
+}
+
 
 void displaySetup() {
   HUB75_I2S_CFG mxconfig(
@@ -111,19 +167,9 @@ void setup() {
 }
 
 void loop() {
-  for (int i = 0; i < CELL_COUNT; i++) {
-    // Update position
-    cells[i].x += cells[i].vx;
-    cells[i].y += cells[i].vy;
+  drawCells();
 
-    // Check for boundary collision
-    if (cells[i].x < 0 || cells[i].x > 127)
-      cells[i].vx *= -1;
-    if (cells[i].y < 0 || cells[i].y > 63)
-      cells[i].vy *= -1;
-
-    dma_display->drawPixelRGB888(cells[i].x, cells[i].y, cells[i].r, cells[i].g, cells[i].b);
-  }
+  checkCollisions();
 
   // Simulation delay
   delay(refreshDelay);
