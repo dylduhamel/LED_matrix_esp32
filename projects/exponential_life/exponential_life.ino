@@ -9,9 +9,9 @@
 // Additional Libraries - some of these will need to be installed.
 // ----------------------------
 
-#include <array>
 #include <unistd.h>
 #include <iostream>
+#include <vector>
 #include <map>
 #include <utility>
 
@@ -40,14 +40,22 @@ struct Cell {
   float angle;      // direction of movement
 };
 
-const int CELL_COUNT = 12;
-const int refreshDelay = 100;
+int CELL_COUNT = 5;
+const int REFRESH_DELAY = 65;
+const int MAX_CELLS = 100;
+
+// Define the size of each bin in the grid
+const int binSize = 2;  // Adjust as needed
+
+// Calculate the number of bins required for the display
+const int numBinsX = (128 / binSize) + 1;  // +1 to handle edge cases
+const int numBinsY = (64 / binSize) + 1;
+
+// 2D vector for the grid
+std::vector<std::vector<std::vector<int>>> grid(numBinsX, std::vector<std::vector<int>>(numBinsY));
 
 // Array of cells
-Cell cells[CELL_COUNT];
-
-// Map to check for collisions
-std::map<std::pair<int, int>, int> coordMap;
+std::vector<Cell> cells(CELL_COUNT);
 
 // placeholder for the matrix object
 MatrixPanel_I2S_DMA* dma_display = nullptr;
@@ -55,8 +63,30 @@ MatrixPanel_I2S_DMA* dma_display = nullptr;
 // For game time
 unsigned long lastTime = 0;
 
-int getRandomCoord() {
-  return random(64);
+void initGrid() {
+  for (int i = 0; i < numBinsX; ++i) {
+    for (int j = 0; j < numBinsY; ++j) {
+      grid[i][j].clear();
+    }
+  }
+}
+
+void initCells() {
+  if (!cells.empty())
+    cells.clear();
+
+  // Initialize cells with random positions, velocities, and directions
+  for (int i = 0; i < CELL_COUNT; i++) {
+    cells[i].x = random(128);
+    cells[i].y = random(64);
+    cells[i].angle = random(0, 2 * PI);         // Random direction 0 to 2π
+    float speed = random(1, 3);                 // Random speed 1 to 3
+    cells[i].vx = speed * cos(cells[i].angle);  // Velocity component in x direction
+    cells[i].vy = speed * sin(cells[i].angle);  // Velocity component in y direction
+    cells[i].r = random(256);
+    cells[i].g = random(256);
+    cells[i].b = random(256);
+  }
 }
 
 void drawCells() {
@@ -75,39 +105,69 @@ void drawCells() {
   }
 }
 
-void checkCollisions() {
-  if (!coordMap.empty())
-    coordMap.clear();
-
-  for (int i = 0; i < CELL_COUNT; i++) {
-    // Cast float coordinates to int before creating the pair
-    int x = static_cast<int>(cells[i].x);
-    int y = static_cast<int>(cells[i].y);
-
-    std::pair<int, int> coordPair = std::make_pair(x, y);
-
-    // Check if map for coord is not empty
-    if (coordMap.count(coordPair) > 0) {
-      coordMap[coordPair] += 1;
-    } else {
-      coordMap[coordPair] = 1;
-    }
+void spawnCell(int x, int y) {
+  if (CELL_COUNT >= MAX_CELLS) {
+    return;  // Do not spawn more cells if the limit is reached
   }
 
-  // Check for collisions (map value > 1)
-  for (const auto& elem : coordMap) {
-    if (elem.second > 1) {
-      Serial.println("Collision");
-      Serial.print("Collision detected at coordinates (");
-      Serial.print(elem.first.first);
-      Serial.print(", ");
-      Serial.print(elem.first.second);
-      Serial.print(") with count ");
-      Serial.println(elem.second);
+  // Create new cell
+  Cell newCell;
+
+  newCell.x = (float)x;
+  newCell.y = (float)y;
+  newCell.angle = random(0, 2 * PI);        // Random direction 0 to 2π
+  float speed = random(1, 3);               // Random speed 1 to 3
+  newCell.vx = speed * cos(newCell.angle);  // Velocity component in x direction
+  newCell.vy = speed * sin(newCell.angle);  // Velocity component in y direction
+  newCell.r = random(256);
+  newCell.g = random(256);
+  newCell.b = random(256);
+
+  CELL_COUNT += 1;
+  cells.push_back(newCell);
+
+  Serial.print("Added cell (");
+  Serial.print(newCell.x);
+  Serial.print(", ");
+  Serial.print(newCell.y);
+  Serial.println(")");
+
+  Serial.print("There are now [");
+  Serial.print(CELL_COUNT);
+  Serial.println("] cells!\n");
+}
+
+void checkCollisions() {
+  initGrid();  // Initialize the grid for this frame
+
+  // Populate the grid with cell indices
+  for (int i = 0; i < CELL_COUNT; i++) {
+    int binX = max(0, min(numBinsX - 1, static_cast<int>(cells[i].x) / binSize));
+    int binY = max(0, min(numBinsY - 1, static_cast<int>(cells[i].y) / binSize));
+    grid[binX][binY].push_back(i);
+  }
+
+  // Flag to check if a cell has been spawned in this frame
+  bool cellSpawned = false;
+
+  // Check for collisions in each bin
+  for (int x = 0; x < numBinsX && !cellSpawned; ++x) {
+    for (int y = 0; y < numBinsY && !cellSpawned; ++y) {
+      if (grid[x][y].size() > 1) {
+        // Collision detected, spawn only one new cell per frame where collision is detected
+        int cellX = x * binSize + binSize / 2;
+        int cellY = y * binSize + binSize / 2;
+        Serial.print("Spawn cell at (");
+        Serial.print(cellX);
+        Serial.print(", ");
+        Serial.print(cellY);
+        Serial.println(")");
+        spawnCell(cellX, cellY);
+        cellSpawned = true;
+      }
     }
   }
 }
-
 
 void displaySetup() {
   HUB75_I2S_CFG mxconfig(
@@ -140,6 +200,8 @@ void displaySetup() {
   // let's adjust default brightness to about 75%
   dma_display->setBrightness8(100);  // range is 0-255, 0 - 0%, 255 - 100%
 
+  dma_display->setRotation(2);
+
   // Allocate memory and start DMA display
   if (not dma_display->begin())
     Serial.println("****** I2S memory allocation failed ***********");
@@ -152,27 +214,19 @@ void setup() {
   // Initialize display
   displaySetup();
 
-  // Initialize cells with random positions, velocities, and directions
-  for (int i = 0; i < CELL_COUNT; i++) {
-    cells[i].x = random(128);
-    cells[i].y = random(64);
-    cells[i].angle = random(0, 2 * PI);         // Random direction 0 to 2π
-    float speed = random(1, 3);                 // Random speed 1 to 3
-    cells[i].vx = speed * cos(cells[i].angle);  // Velocity component in x direction
-    cells[i].vy = speed * sin(cells[i].angle);  // Velocity component in y direction
-    cells[i].r = random(256);
-    cells[i].g = random(256);
-    cells[i].b = random(256);
-  }
+  initCells();
 }
 
 void loop() {
   drawCells();
-
   checkCollisions();
 
-  // Simulation delay
-  delay(refreshDelay);
+  delay(REFRESH_DELAY);
+
+  if (CELL_COUNT > MAX_CELLS) {
+    Serial.println("Cell reset.");
+    initCells();
+  }
 
   dma_display->clearScreen();
 }
