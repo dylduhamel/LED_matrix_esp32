@@ -38,11 +38,20 @@ struct Cell {
   float vx, vy;     // velocity
   uint8_t r, g, b;  // color
   float angle;      // direction of movement
+
+  // Default constructor
+  Cell()
+    : x(0), y(0), vx(0), vy(0), r(0), g(0), b(0), angle(0) {
+    // Initialize all members to zero (or any other default value)
+  }
 };
 
-int CELL_COUNT = 5;
+bool run = true;
+
 const int REFRESH_DELAY = 65;
-const int MAX_CELLS = 100;
+const int MAX_CELLS = 10;
+const int STARTING_CELLS = 5;
+int CELL_COUNT = STARTING_CELLS;
 
 // Define the size of each bin in the grid
 const int binSize = 2;  // Adjust as needed
@@ -55,7 +64,7 @@ const int numBinsY = (64 / binSize) + 1;
 std::vector<std::vector<std::vector<int>>> grid(numBinsX, std::vector<std::vector<int>>(numBinsY));
 
 // Array of cells
-std::vector<Cell> cells(CELL_COUNT);
+Cell cells[MAX_CELLS];
 
 // placeholder for the matrix object
 MatrixPanel_I2S_DMA* dma_display = nullptr;
@@ -72,9 +81,6 @@ void initGrid() {
 }
 
 void initCells() {
-  if (!cells.empty())
-    cells.clear();
-
   // Initialize cells with random positions, velocities, and directions
   for (int i = 0; i < CELL_COUNT; i++) {
     cells[i].x = random(128);
@@ -86,6 +92,12 @@ void initCells() {
     cells[i].r = random(256);
     cells[i].g = random(256);
     cells[i].b = random(256);
+  }
+}
+
+void clearCells() {
+  for (int i = 0; i < MAX_CELLS; ++i) {
+    cells[i] = Cell();  // Assign a new default-constructed Cell
   }
 }
 
@@ -106,10 +118,6 @@ void drawCells() {
 }
 
 void spawnCell(int x, int y) {
-  if (CELL_COUNT >= MAX_CELLS) {
-    return;  // Do not spawn more cells if the limit is reached
-  }
-
   // Create new cell
   Cell newCell;
 
@@ -123,18 +131,8 @@ void spawnCell(int x, int y) {
   newCell.g = random(256);
   newCell.b = random(256);
 
+  cells[CELL_COUNT] = newCell;
   CELL_COUNT += 1;
-  cells.push_back(newCell);
-
-  Serial.print("Added cell (");
-  Serial.print(newCell.x);
-  Serial.print(", ");
-  Serial.print(newCell.y);
-  Serial.println(")");
-
-  Serial.print("There are now [");
-  Serial.print(CELL_COUNT);
-  Serial.println("] cells!\n");
 }
 
 void checkCollisions() {
@@ -224,8 +222,13 @@ void loop() {
   delay(REFRESH_DELAY);
 
   if (CELL_COUNT > MAX_CELLS) {
-    Serial.println("Cell reset.");
+    Serial.println("1");
+    clearCells();
+    Serial.println("2");
+    CELL_COUNT = STARTING_CELLS;
+    Serial.println("3");
     initCells();
+    Serial.println("4");
   }
 
   dma_display->clearScreen();
