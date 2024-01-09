@@ -49,8 +49,8 @@ struct Cell {
 bool run = true;
 
 const int REFRESH_DELAY = 65;
-const int MAX_CELLS = 10;
-const int STARTING_CELLS = 5;
+const int MAX_CELLS = 15;
+const int STARTING_CELLS = 7;
 int CELL_COUNT = STARTING_CELLS;
 
 // Define the size of each bin in the grid
@@ -73,10 +73,35 @@ MatrixPanel_I2S_DMA* dma_display = nullptr;
 unsigned long lastTime = 0;
 
 void initGrid() {
+  Serial.println("Initializing Grid...");
   for (int i = 0; i < numBinsX; ++i) {
+    if (i >= grid.size()) {
+      Serial.println("Grid X index out of bounds");
+      break;
+    }
+
     for (int j = 0; j < numBinsY; ++j) {
+      if (j >= grid[i].size()) {
+        Serial.println("Grid Y index out of bounds");
+        break;
+      }
+
       grid[i][j].clear();
     }
+  }
+  Serial.println("Grid Initialized");
+}
+
+
+void printCells() {
+  for (int i = 0; i < CELL_COUNT; ++i) {
+    Serial.print("Cell ");
+    Serial.print(i + 1);
+    Serial.print("  (");
+    Serial.print(cells[i].x);
+    Serial.print(", ");
+    Serial.print(cells[i].y);
+    Serial.print(")\n");
   }
 }
 
@@ -118,6 +143,10 @@ void drawCells() {
 }
 
 void spawnCell(int x, int y) {
+  if (CELL_COUNT > MAX_CELLS) {
+    return;
+  }
+  
   // Create new cell
   Cell newCell;
 
@@ -137,13 +166,23 @@ void spawnCell(int x, int y) {
 
 void checkCollisions() {
   initGrid();  // Initialize the grid for this frame
+  Serial.println("initGrid exited successfully");
 
   // Populate the grid with cell indices
   for (int i = 0; i < CELL_COUNT; i++) {
-    int binX = max(0, min(numBinsX - 1, static_cast<int>(cells[i].x) / binSize));
-    int binY = max(0, min(numBinsY - 1, static_cast<int>(cells[i].y) / binSize));
+    // Ensure that the cell's position is within the bounds of the grid
+    int cellX = max(0, min(panelResX * panel_chain - 1, (int)cells[i].x));
+    int cellY = max(0, min(panelResY * panel_chain - 1, (int)cells[i].y));
+
+    // Calculate bin indices
+    int binX = min(numBinsX - 1, cellX / binSize);
+    int binY = min(numBinsY - 1, cellY / binSize);
+
     grid[binX][binY].push_back(i);
   }
+
+
+  Serial.println("Cells populated successfully");
 
   // Flag to check if a cell has been spawned in this frame
   bool cellSpawned = false;
@@ -216,19 +255,25 @@ void setup() {
 }
 
 void loop() {
+  initGrid();
+  Serial.println("A");
   drawCells();
+  Serial.println("B");
   checkCollisions();
+  Serial.println("C");
 
   delay(REFRESH_DELAY);
 
+  // Check if the cell count exceeds the maximum allowed
   if (CELL_COUNT > MAX_CELLS) {
-    Serial.println("1");
+    // Reset the cell count to 5
+    CELL_COUNT = 5;
+
+    // Clear all cell data
     clearCells();
-    Serial.println("2");
-    CELL_COUNT = STARTING_CELLS;
-    Serial.println("3");
+
+    // Reinitialize the cells with the new count
     initCells();
-    Serial.println("4");
   }
 
   dma_display->clearScreen();
